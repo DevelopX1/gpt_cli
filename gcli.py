@@ -25,7 +25,7 @@ parser.add_option('--configure',
 Exception list
 """
 class NoDefaultConfigSection(Exception):
-    def __init__(self, config_file_path):
+    def __init__(self, config_file_path: str):
         """
         Called if there is no default section in the configuration file
         """
@@ -49,17 +49,26 @@ class EmptyResponse(Exception):
         self.message = f'Unknown error'
         super().__init__(self.message)
 
+class EmptyToken(Exception):
+    def __init__(self):
+        """
+        Called if the token is not specified
+        """
+        self.message = f'Token is not specified'
+        super().__init__(self.message)
+
 """
 function to save OpenAItoken to config file
 """
-def configure(config_file_path):
+def configure(config_file_path: str):
     openai_token = input('Please, enter OpenAi token: ')
     if openai_token:
-        config_file = open(config_file_path, 'w')
-        config_file.write(f'[default]\nOPENAI_API_TOKEN={openai_token}')
-        config_file.close()
+        with open(config_file_path, 'w') as file:
+            file.write(f'[default]\nOPENAI_API_TOKEN={openai_token}')
+    else:
+        raise EmptyToken
 
-"""
+""" 
 Request for OpenAI, 
 get prompt, return text
 """
