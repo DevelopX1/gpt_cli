@@ -39,8 +39,13 @@ if ! test -f "${SCRIPT_ABS_PATH}"; then
 fi
 
 pyinstaller "${SCRIPT_ABS_PATH}"
-sudo mv -v "${SCRIPT_DIR}/dist/${APP_NAME}" "${HOME}/.${APP_NAME}"
-sudo ln -sv /Users/who/.gcli/gcli /usr/local/bin/gcli
-sudo rm -rf build
-sudo rm -rf dist
-sudo rm -rf gcli.spec
+
+rm -rf "${HOME}/.${APP_NAME}"
+mv -v "${SCRIPT_DIR}/dist/${APP_NAME}" "${HOME}/.${APP_NAME}"
+
+if ! test -h ${INSTALL_DIR}/${APP_NAME}; then
+     ln -sv ${HOME}/.${APP_NAME}/${APP_NAME} ${INSTALL_DIR}/${APP_NAME}
+fi
+
+rm -rfv {build, dist, gcli.spec}
+

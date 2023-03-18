@@ -1,23 +1,33 @@
 #!/usr/bin/env python3.7
 from optparse import OptionParser
+from termcolor import colored
 from pathlib import Path
+from sys import exit
 import configparser
+import orm_sqlite  
 import openai
-import locale
-import sys
 import os
 
+OPENAI_MAX_TOKENS = 1000
 CONFIG_NAME = '.gpt.conf'
 OPENAI_TEXT_MODEL = 'text-davinci-003'
-OPENAI_MAX_TOKENS = 1000
+HITSORY_FILE_NAME = '.gpt_cli_history.db'
 CONFIG_DEFAULT_SECTION = 'default'
 CONFIG_DEFAULT_PATH = os.path.join(Path.home(), CONFIG_NAME)
-
+HISTORY_FILE_ABS_PATH = os.path.join(Path.home(), HITSORY_FILE_NAME)
+COLORS = {
+    'hisotory_responce_color': 'white',
+    'hisotory_request_color': 'green',
+    'term_responce_color': 'white'
+}
 
 parser = OptionParser()
 parser.add_option('--configure',
                     action="store_true",
                     help='Start configure')
+parser.add_option('--history',
+                    action="store_true",
+                    help='Show history of requests and responces')
 
 (options, args) = parser.parse_args()
 
@@ -57,6 +67,34 @@ class EmptyToken(Exception):
         self.message = f'Token is not specified'
         super().__init__(self.message)
 
+
+"""
+all query history is stored in sqlite database by
+reference in HISTORY_FILE_ABS_PATH variable
+"""
+class History(orm_sqlite.Model):  
+    id = orm_sqlite.IntegerField(primary_key=True) 
+    request = orm_sqlite.StringField()
+    responce = orm_sqlite.StringField()
+
+
+"""
+Add history
+"""
+def write_history(question, answer):
+    return History({'request': question, 'responce': answer}).save()
+
+
+"""
+Show history
+"""
+def show_history(history_file_path):
+    for obj in History.objects.all():
+        print(colored(obj['request'], COLORS['hisotory_request_color'],
+                                      attrs=['bold']), end='⬇️')
+        print(colored(obj['responce'], COLORS['hisotory_responce_color']))
+
+
 """
 function to save OpenAItoken to config file
 """
@@ -88,8 +126,15 @@ def openai_request(text: str) -> str:
 Here is the main logic
 """
 if __name__ == '__main__':
+    db = orm_sqlite.Database(HISTORY_FILE_ABS_PATH)
+    History.objects.backend = db
+
     if options.configure:
         configure(CONFIG_DEFAULT_PATH)
+        exit(0)
+
+    if options.history:
+        show_history(HISTORY_FILE_ABS_PATH)
         exit(0)
 
     if not os.path.isfile(CONFIG_DEFAULT_PATH):
@@ -105,6 +150,6 @@ if __name__ == '__main__':
             raise PromptIsEmpty
 
         openai.api_key = config[CONFIG_DEFAULT_SECTION]['OPENAI_API_TOKEN']
-        print(openai_request(args[0]))
-
-
+        answer = openai_request(args[0])
+        write_history(args[0], answer)
+        print(colored(answer, COLORS['term_responce_color'], attrs=['bold']))
