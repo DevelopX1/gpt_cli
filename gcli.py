@@ -1,25 +1,24 @@
 #!/usr/bin/env python3.7
 
-from exceptions import NoDefaultConfigSection, PromptIsEmpty, EmptyResponse, EmptyToken
+from exceptions import PromptIsEmpty, EmptyResponse, EmptyToken
 from sqlalchemy import Column, Integer, String, create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.inspection import inspect
+
 from difflib import SequenceMatcher
 from optparse import OptionParser
 from termcolor import colored
 from pathlib import Path
 from sys import exit
-import configparser 
+import getpass
 import openai
 import os
 
 OPENAI_MAX_TOKENS = 1000
 HISTORY_MACH_PROC = 0.70
-CONFIG_NAME = '.gpt.conf'
+CONFIG_NAME = '.gpt_cli.db'
 OPENAI_TEXT_MODEL = 'text-davinci-003'
-HITSORY_FILE_NAME = '.gpt_cli_history.db'
-CONFIG_DEFAULT_SECTION = 'default'
 CONFIG_DEFAULT_PATH = os.path.join(Path.home(), CONFIG_NAME)
-HISTORY_FILE_ABS_PATH = os.path.join(Path.home(), HITSORY_FILE_NAME)
 COLORS = {
     'hisotory_responce_color': 'white',
     'hisotory_request_color': 'green',
@@ -28,8 +27,8 @@ COLORS = {
 }
 
 
-# Connector
-engine = create_engine(f'sqlite:///{HISTORY_FILE_ABS_PATH}', echo=False)
+# Connector to history db
+engine = create_engine(f'sqlite:///{CONFIG_DEFAULT_PATH}', echo=False)
 Session = sessionmaker(bind=engine)
 Session.configure(bind=engine)
 session = Session()
@@ -50,8 +49,8 @@ parser.add_option('--forse_search',
 
 
 """
-all query history is stored in sqlite database by
-reference in HISTORY_FILE_ABS_PATH variable
+all query history and configuration is stored in sqlite database by
+reference in CONFIG_DEFAULT_PATH variable
 """
 class History(Base):
     __tablename__ = 'history'
@@ -64,6 +63,16 @@ class History(Base):
         self.responce = responce
         
 
+class Config(Base):
+    __tablename__ = 'config_db'
+    id = Column(Integer, primary_key = True)
+    key = Column(String, unique = True)
+    value = Column(String, unique = True)
+
+    def __init__(self, key, value):
+        self.key = key
+        self.value = value
+       
 """
 If there is a similar request in the history, then return it
 """
@@ -105,7 +114,7 @@ def write_history(question: str, answer: str):
 """
 Show history
 """
-def show_history(history_file_path: str):
+def show_history():
     for obj in session.query(History).all():
         print(colored(obj.request, COLORS['hisotory_request_color'],
                                       attrs=['bold']), end='⬇️\n')
@@ -115,15 +124,15 @@ def show_history(history_file_path: str):
 """
 function to save OpenAItoken to config file
 """
-def configure(config_file_path: str):
-    Base.metadata.create_all(engine)
-    openai_token = input('Please, enter OpenAi token: ')
+def configure():
+    openai_token = getpass.getpass('Please, enter OpenAi token:')
+
     if openai_token:
-        with open(config_file_path, 'w') as file:
-            file.write(f'[default]\nOPENAI_API_TOKEN={openai_token}')
+        session.add(Config('openai_api_token', openai_token))
     else:
         raise EmptyToken
 
+    return openai_token
 
 """ 
 Request for OpenAI, 
@@ -148,33 +157,36 @@ Here is the main logic
 if __name__ == '__main__':
 
     if options.configure:
-        configure(CONFIG_DEFAULT_PATH)
+        configure()
         exit(0)
 
     if options.history:
-        show_history(HISTORY_FILE_ABS_PATH)
+        show_history()
         exit(0)
 
-    if not os.path.isfile(CONFIG_DEFAULT_PATH):
-        configure(CONFIG_DEFAULT_PATH)
+    if not os.path.isfile(CONFIG_DEFAULT_PATH) or \
+       not inspect(engine).has_table('config_db') or \
+       not inspect(engine).has_table('history'):
+       Base.metadata.create_all(engine)
+
+    api_token = session.query(Config.value).filter_by(key='openai_api_token').first() 
+
+    if not api_token:
+        openai.api_key = configure()
     else:
-        config = configparser.ConfigParser()
-        config.read(CONFIG_DEFAULT_PATH)
+        openai.api_key = api_token[0]
 
-        if CONFIG_DEFAULT_SECTION not in config.sections():
-            raise NoDefaultConfigSection
+    if not args:
+        raise PromptIsEmpty
 
-        if not args:
-            raise PromptIsEmpty
+    matcher_history = history_matcher(args[0])
 
-        openai.api_key = config[CONFIG_DEFAULT_SECTION]['OPENAI_API_TOKEN']
-        matcher_history = history_matcher(args[0])
-
-        if matcher_history and not options.forse_search:
-            find_history(matcher_history)
-        # else:
-        #     answer = openai_request(args[0])
-        #     write_history(args[0], answer)
-        #     print(colored(answer, COLORS['term_responce_color']))
-        #     session.flush()
-        #     session.commit()
+    if matcher_history and not options.forse_search:
+        find_history(matcher_history)
+    else:
+        answer = openai_request(args[0])
+        write_history(args[0], answer)
+        print(colored(answer, COLORS['term_responce_color']))
+        
+    session.flush()
+    session.commit()

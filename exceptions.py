@@ -1,15 +1,6 @@
 """
 Exception list
 """
-class NoDefaultConfigSection(Exception):
-    def __init__(self, config_file_path: str):
-        """
-        Called if there is no default section in the configuration file
-        """
-        self.message = f'Missing [default] section in config file - {config_file_path}'
-        super().__init__(self.message)
-
-
 class PromptIsEmpty(Exception):
     def __init__(self):
         """
