@@ -70,7 +70,7 @@ If there is a similar request in the history, then return it
 def history_matcher(text: str) -> str:
     data = {}
 
-    for obj in session.query(History).all():
+    for obj in session.query(History).filter(History.request.like(f'%{text}%')).all():
         request = obj.request
         request_check = SequenceMatcher(None, request, text).ratio()
         
@@ -172,9 +172,9 @@ if __name__ == '__main__':
 
         if matcher_history and not options.forse_search:
             find_history(matcher_history)
-        else:
-            answer = openai_request(args[0])
-            write_history(args[0], answer)
-            print(colored(answer, COLORS['term_responce_color']))
-            session.flush()
-            session.commit()
+        # else:
+        #     answer = openai_request(args[0])
+        #     write_history(args[0], answer)
+        #     print(colored(answer, COLORS['term_responce_color']))
+        #     session.flush()
+        #     session.commit()
