@@ -41,7 +41,7 @@ parser.add_option('--configure',
 parser.add_option('--history',
                     action="store_true",
                     help='Show history of requests and responces')
-parser.add_option('--forse_search',
+parser.add_option('--force_search',
                     action="store_true",
                     help='Show history of requests and responces')
 
@@ -98,7 +98,7 @@ previously on a duplicate request
 def find_history(text: str):
     history_obj = session.query(History).filter(History.request == text).all()
 
-    print(colored('From history (to use ChatGPT add --forse_search option)',
+    print(colored('From history (to use ChatGPT add --force_search option)',
                         COLORS['resp_from_history'],
                         attrs=['bold']))
 
@@ -181,7 +181,7 @@ if __name__ == '__main__':
 
     matcher_history = history_matcher(args[0])
 
-    if matcher_history and not options.forse_search:
+    if matcher_history and not options.force_search:
         find_history(matcher_history)
     else:
         answer = openai_request(args[0])
