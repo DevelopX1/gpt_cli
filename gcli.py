@@ -29,9 +29,7 @@ COLORS = {
 
 # Connector to history db
 engine = create_engine(f'sqlite:///{CONFIG_DEFAULT_PATH}', echo=False)
-Session = sessionmaker(bind=engine)
-Session.configure(bind=engine)
-session = Session()
+Session = sessionmaker(bind=engine).configure(bind=engine)()
 Base = declarative_base()
 
 parser = OptionParser()
@@ -43,7 +41,7 @@ parser.add_option('--history',
                     help='Show history of requests and responces')
 parser.add_option('--force_search',
                     action="store_true",
-                    help='Show history of requests and responces')
+                    help='Search, without reading history')
 
 (options, args) = parser.parse_args()
 
